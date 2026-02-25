@@ -10,6 +10,7 @@ Features:
 - Brownout monitoring
 - Optional power-fail hold-up
 - systemd watchdog support
+- Auto-enforce read-only root
 - Works on Pi 3 / 4 / 5
 """
 
@@ -33,21 +34,20 @@ except Exception:
 # CONFIG
 # ============================================================
 
-SHUTDOWN_PIN = 17      # GPIO -> switch -> GND (latching)
-RESET_PIN    = 27      # GPIO -> button -> GND (momentary)
-SAFE_PIN     = 22      # Output to power controller
+SHUTDOWN_PIN = 17
+RESET_PIN    = 27
+SAFEPOWER_PIN = 22
 
-# --- OPTIONAL: power-fail hold-up input ---
 ENABLE_POWER_FAIL = False
-POWER_FAIL_PIN    = 23  # set ENABLE_POWER_FAIL=True to use
+POWER_FAIL_PIN    = 23
 
 BOOT_IGNORE_TIME = 5.0
 BOUNCE_TIME = 0.05
 
 SHUTDOWN_SCRIPT = "/opt/shutdown.rpi"
 RESTART_SCRIPT  = "/opt/restart.rpi"
+RO_ENFORCE_SCRIPT = "/opt/pm-enable-ro-root.py"
 
-# ----- Brownout config -----
 BROWNOUT_CHECK_INTERVAL = 5.0
 BROWNOUT_TRIGGER_COUNT  = 3
 BROWNOUT_SHUTDOWN       = True
@@ -60,17 +60,16 @@ boot_time = time.time()
 shutdown_triggered = False
 shutdown_lock = threading.Lock()
 brownout_counter = 0
+ro_check_done = False
 
 # ============================================================
 # SAFE POWER SIGNAL
 # ============================================================
 
-# LOW  = system running
-# HIGH = safe to cut power
 safe_out = OutputDevice(
-    SAFE_PIN,
+    SAFEPOWER_PIN,
     active_high=True,
-    initial_value=False  # CRITICAL: must be LOW at boot
+    initial_value=False
 )
 
 # ============================================================
@@ -82,7 +81,6 @@ def log(msg: str):
 
 
 def run_script(path: str):
-    """Run external helper safely without blocking."""
     if not os.path.exists(path):
         log(f"Missing script: {path}")
         return
@@ -98,8 +96,54 @@ def run_script(path: str):
         log(f"Failed to execute {path}: {e}")
 
 
+# ============================================================
+# READ-ONLY ROOT ENFORCER
+# ============================================================
+
+def root_is_read_only() -> bool:
+    try:
+        out = subprocess.check_output(
+            ["findmnt", "-n", "-o", "OPTIONS", "/"],
+            text=True,
+            timeout=2,
+        )
+        return "ro" in out.split(",")
+    except Exception:
+        return False
+
+
+def enforce_ro_root_once():
+    global ro_check_done
+
+    if ro_check_done:
+        return
+    ro_check_done = True
+
+    try:
+        if root_is_read_only():
+            log("RO root already active")
+            return
+
+        if not os.path.exists(RO_ENFORCE_SCRIPT):
+            log("RO enforcement script missing")
+            return
+
+        log("Root is RW — enabling RO mode")
+        subprocess.Popen(
+            [RO_ENFORCE_SCRIPT],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+    except Exception as e:
+        log(f"RO check failed: {e}")
+
+# ============================================================
+# POWER ACTIONS
+# ============================================================
+
 def safe_shutdown(reason="unknown"):
-    """Unified shutdown entry."""
     global shutdown_triggered
 
     with shutdown_lock:
@@ -120,7 +164,6 @@ def safe_reboot():
 # ============================================================
 
 def check_undervoltage():
-    """Return True if undervoltage currently detected."""
     try:
         out = subprocess.check_output(
             ["vcgencmd", "get_throttled"],
@@ -132,7 +175,7 @@ def check_undervoltage():
             return False
 
         value = int(out.split("=")[1], 16)
-        return bool(value & 0x1)  # UNDERVOLT_NOW
+        return bool(value & 0x1)
 
     except Exception as e:
         log(f"vcgencmd error: {e}")
@@ -164,7 +207,7 @@ def brownout_monitor():
             brownout_counter = 0
 
 # ============================================================
-# OPTIONAL POWER-FAIL HOLD-UP
+# OPTIONAL POWER-FAIL
 # ============================================================
 
 if ENABLE_POWER_FAIL:
@@ -177,7 +220,6 @@ if ENABLE_POWER_FAIL:
     def power_fail_triggered():
         if time.time() - boot_time < BOOT_IGNORE_TIME:
             return
-
         if shutdown_triggered:
             return
 
@@ -207,10 +249,8 @@ def shutdown_edge():
     if time.time() - boot_time < BOOT_IGNORE_TIME:
         log("Ignoring switch during boot window")
         return
-
     if shutdown_triggered:
         return
-
     if shutdown_sw.is_pressed:
         safe_shutdown("switch")
 
@@ -232,13 +272,15 @@ def watchdog_ping():
         time.sleep(20)
 
 # ============================================================
-# START BACKGROUND TASKS
+# STARTUP TASKS
 # ============================================================
 
 threading.Thread(target=brownout_monitor, daemon=True).start()
 threading.Thread(target=watchdog_ping, daemon=True).start()
 
-# Notify systemd we are ready
+# Run RO check shortly after boot
+threading.Timer(10, enforce_ro_root_once).start()
+
 if SYSTEMD_NOTIFY:
     notifier.notify("READY=1")
 

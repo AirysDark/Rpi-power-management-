@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+KEYFILE="/etc/pm-device-key"
+DEVICE_FILE="/etc/pm-device.json"
+
+if [[ -f "$KEYFILE" ]]; then
+  echo "[pm-key] key already exists"
+  exit 0
+fi
+
+echo "[pm-key] generating device key"
+
+openssl rand -hex 32 > "$KEYFILE"
+chmod 600 "$KEYFILE"
+
+echo "[pm-key] done"

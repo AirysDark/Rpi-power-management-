@@ -1,0 +1,11 @@
+[Unit]
+Description=Pi node telemetry API
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/pm-node-api.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

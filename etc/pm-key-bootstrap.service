@@ -1,0 +1,13 @@
+[Unit]
+Description=Power Manager Key Bootstrap
+DefaultDependencies=no
+Before=pm-node-beacon.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/pm-key-bootstrap
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

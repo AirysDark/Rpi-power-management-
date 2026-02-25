@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+KEY="/etc/pm-device-key"
+NEXT="/etc/pm-device-key.next"
+EPOCH="/var/lib/pm-key-epoch"
+
+echo "[pm-rotate] starting rotation"
+
+mkdir -p /var/lib
+
+# --------------------------------------------------
+# ensure current key exists
+# --------------------------------------------------
+
+if [[ ! -f "$KEY" ]]; then
+  echo "[pm-rotate] ERROR: missing active key"
+  exit 1
+fi
+
+# --------------------------------------------------
+# generate next key
+# --------------------------------------------------
+
+echo "[pm-rotate] generating next key"
+openssl rand -hex 32 > "$NEXT"
+chmod 600 "$NEXT"
+
+# --------------------------------------------------
+# bump epoch
+# --------------------------------------------------
+
+if [[ -f "$EPOCH" ]]; then
+  epoch=$(cat "$EPOCH")
+else
+  epoch=1
+fi
+
+epoch=$((epoch + 1))
+echo "$epoch" > "$EPOCH"
+
+echo "[pm-rotate] staged epoch $epoch"
+echo "[pm-rotate] rotation staged — waiting for fleet accept"

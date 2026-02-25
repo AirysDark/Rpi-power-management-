@@ -3,6 +3,7 @@ journalctl -u power-manager -f
 
 sudo apt update
 sudo apt install python3-gpiozero python3-sdnotify
+sudo apt install util-linux
 
 
 sudo nano /boot/config.txt
@@ -28,16 +29,31 @@ sudo systemctl restart watchdog
 sudo systemctl daemon-reload
 sudo systemctl enable power-cut.service
 sudo systemctl start power-cut.service
-sudo systemctl restart power-cut.service
 sudo systemctl enable power-manager.service
 sudo systemctl start power-manager.service
-sudo systemctl restart power-manager.service
 sudo systemctl daemon-reload
 sudo systemctl enable pm-update.service
 sudo systemctl start pm-update.service
 sudo systemctl daemon-reload
 sudo systemctl enable pm-update.timer
 sudo systemctl start pm-update.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now storage-sync.timer
+sudo systemctl daemon-reload
+sudo systemctl enable pm-crash-capture.service
+sudo systemctl enable pm-clean-shutdown.service
+sudo systemctl daemon-reload
+sudo systemctl enable pm-boot-health.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now pm-fleet-agent.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now pm-node-api
+sudo systemctl daemon-reload
+sudo systemctl enable --now pm-fleet-dashboard
+sudo systemctl daemon-reload
+sudo systemctl enable pm-key-bootstrap
+sudo systemctl daemon-reload
+sudo systemctl enable --now pm-key-rotate.timer
 
 systemctl list-timers | grep pm-update
 
@@ -46,3 +62,11 @@ journalctl -u pm-update -f
 
 sudo systemctl restart power-manager
 journalctl -u power-manager -f
+
+sudo nano /boot/cmdline.txt
+panic=5 printk.devkmsg=on
+
+/boot/config.txt
+gpio=22=op,dl
+
+sudo chmod +x /usr/local/bin/pm-boot-health.py

@@ -1,0 +1,11 @@
+[Unit]
+Description=Pi node discovery beacon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/pm-node-beacon.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

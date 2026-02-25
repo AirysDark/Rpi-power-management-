@@ -1,0 +1,23 @@
+sudo nano /etc/pm-device.json
+
+{
+  "device_id": "pi-node-01",
+  "role": "gitea-node",
+  "site": "garage-lab"
+}
+
+
+
+sudo chmod +x /usr/local/bin/pm-gen-device-key
+sudo pm-gen-device-key
+
+sudo nano /etc/pm-fleet-keys.json
+{
+  "pi-01": {
+    "active": "HEXKEY",
+    "next": "HEXKEY",
+    "epoch": 3
+  }
+}
+
+sudo chattr +i /etc/pm-device-key

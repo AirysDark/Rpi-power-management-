@@ -1,0 +1,6 @@
+[Unit]
+Description=Periodic Storage Sync
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sync
