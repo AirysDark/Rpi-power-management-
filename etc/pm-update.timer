@@ -1,0 +1,18 @@
+[Unit]
+Description=Run Power Manager Auto Update periodically
+
+[Timer]
+# First run after boot
+OnBootSec=10min
+
+# Repeat interval
+OnUnitActiveSec=6h
+
+# Add random delay (prevents network spikes)
+RandomizedDelaySec=5min
+
+# Ensure missed runs happen after downtime
+Persistent=true
+
+[Install]
+WantedBy=timers.target

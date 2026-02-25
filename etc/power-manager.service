@@ -1,0 +1,49 @@
+[Unit]
+Description=GPIO Power Manager (Hardened)
+After=multi-user.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/pm-service.py
+WorkingDirectory=/opt
+User=root
+
+# -----------------------------
+# Restart armor
+# -----------------------------
+Restart=always
+RestartSec=2
+StartLimitBurst=5
+
+# -----------------------------
+# Hang detection (systemd watchdog)
+# -----------------------------
+WatchdogSec=60
+
+# -----------------------------
+# Timeout protection
+# -----------------------------
+TimeoutStartSec=30
+TimeoutStopSec=15
+
+# -----------------------------
+# Process behavior
+# -----------------------------
+KillMode=process
+KillSignal=SIGTERM
+
+# -----------------------------
+# Security hardening
+# -----------------------------
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+# -----------------------------
+# Logging
+# -----------------------------
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

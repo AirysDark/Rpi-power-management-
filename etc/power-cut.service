@@ -1,0 +1,19 @@
+[Unit]
+Description=Assert SAFE power cut signal
+DefaultDependencies=no
+Before=shutdown.target halt.target reboot.target poweroff.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -c "from gpiozero import OutputDevice; import time; p=OutputDevice(22, active_high=True, initial_value=False); p.on(); time.sleep(0.1)"
+TimeoutSec=5
+RemainAfterExit=yes
+
+# --- Hardening ---
+User=root
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=halt.target reboot.target shutdown.target poweroff.target

@@ -1,0 +1,48 @@
+sudo systemctl restart power-manager
+journalctl -u power-manager -f
+
+sudo apt update
+sudo apt install python3-gpiozero python3-sdnotify
+
+
+sudo nano /boot/config.txt
+
+dtparam=watchdog=on
+
+ls /dev/watchdog*
+/dev/watchdog
+/dev/watchdog0
+
+sudo apt update
+sudo apt install watchdog
+
+sudo nano /etc/watchdog.conf
+
+watchdog-device = /dev/watchdog
+watchdog-timeout = 15
+interval = 5
+
+sudo systemctl enable watchdog
+sudo systemctl start watchdog
+sudo systemctl restart watchdog
+sudo systemctl daemon-reload
+sudo systemctl enable power-cut.service
+sudo systemctl start power-cut.service
+sudo systemctl restart power-cut.service
+sudo systemctl enable power-manager.service
+sudo systemctl start power-manager.service
+sudo systemctl restart power-manager.service
+sudo systemctl daemon-reload
+sudo systemctl enable pm-update.service
+sudo systemctl start pm-update.service
+sudo systemctl daemon-reload
+sudo systemctl enable pm-update.timer
+sudo systemctl start pm-update.timer
+
+systemctl list-timers | grep pm-update
+
+sudo systemctl start pm-update.service
+journalctl -u pm-update -f
+
+sudo systemctl restart power-manager
+journalctl -u power-manager -f

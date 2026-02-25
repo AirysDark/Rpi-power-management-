@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[pm] ===== STAGED REBOOT START ====="
+
+# ============================================================
+# CONFIG — EDIT FOR YOUR SYSTEM
+# ============================================================
+
+# Services to stop cleanly before reboot
+CRITICAL_SERVICES=(
+  gitea
+)
+
+# Seconds to wait per service
+SERVICE_STOP_TIMEOUT=10
+
+# Absolute max time before forced reboot
+GLOBAL_TIMEOUT=45
+
+WATCHDOG_FILE="/run/pm_reboot_watchdog"
+
+# ============================================================
+# WATCHDOG — guarantees reboot completes
+# ============================================================
+
+(
+  sleep "$GLOBAL_TIMEOUT"
+  echo "[pm] WATCHDOG: forcing reboot"
+  sync
+  /sbin/reboot
+) &
+
+WATCHDOG_PID=$!
+echo "$WATCHDOG_PID" > "$WATCHDOG_FILE"
+
+# ============================================================
+# HELPER — graceful service stop
+# ============================================================
+
+stop_service() {
+  local svc="$1"
+
+  # Skip if service not installed
+  if ! systemctl list-unit-files | grep -q "^${svc}"; then
+    echo "[pm] Service not found: $svc"
+    return
+  fi
+
+  if systemctl is-active --quiet "$svc"; then
+    echo "[pm] Stopping $svc"
+    systemctl stop "$svc"
+
+    local waited=0
+    while systemctl is-active --quiet "$svc"; do
+      sleep 1
+      waited=$((waited + 1))
+
+      if (( waited >= SERVICE_STOP_TIMEOUT )); then
+        echo "[pm] TIMEOUT stopping $svc — forcing"
+        systemctl kill "$svc" || true
+        break
+      fi
+    done
+
+    echo "[pm] $svc stopped"
+  fi
+}
+
+# ============================================================
+# STAGED SERVICE STOP
+# ============================================================
+
+for svc in "${CRITICAL_SERVICES[@]}"; do
+  stop_service "$svc"
+done
+
+# ============================================================
+# FINAL DISK FLUSH
+# ============================================================
+
+echo "[pm] Syncing disks"
+sync
+sleep 1
+
+# ============================================================
+# CANCEL WATCHDOG (we succeeded)
+# ============================================================
+
+if [[ -f "$WATCHDOG_FILE" ]]; then
+  kill "$(cat "$WATCHDOG_FILE")" 2>/dev/null || true
+  rm -f "$WATCHDOG_FILE"
+fi
+
+echo "[pm] ===== SYSTEM REBOOT ====="
+
+/sbin/reboot

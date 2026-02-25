@@ -1,0 +1,16 @@
+[Unit]
+Description=Power Manager Auto Update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/pm-update.py
+TimeoutSec=120
+User=root
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
