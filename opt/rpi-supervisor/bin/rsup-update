@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
 """
-Rpi Supervisor Auto-Updater (Hardened + Rollback Safe)
+Rpi Supervisor Auto-Updater (Hardened + Full Health Validation)
 
 Features:
-- Safe fast-forward pull
-- Detects if repo exists
-- Network-safe
-- Clean logging
+- Fast-forward only updates
+- Channel aware (main/beta/stable)
 - Service health verification
+- API validation
+- Status endpoint validation
+- Beacon socket validation
+- Watchdog heartbeat validation
+- Config load validation
 - Automatic rollback on failure
-- Channel-aware (main/beta/stable)
-- Works on Pi 3/4/5
 """
 
 import subprocess
 import sys
 import os
 import time
+import socket
+import json
 from pathlib import Path
+from urllib.request import urlopen
+from urllib.error import URLError
+import configparser
 
 # ============================================================
 # CONFIG
@@ -25,9 +31,14 @@ from pathlib import Path
 
 REPO_DIR = Path("/opt/rpi-supervisor")
 CHANNEL_FILE = Path("/etc/rpi-supervisor/update-channel")
+CONFIG_FILE = Path("/etc/rpi-supervisor/supervisor.conf")
+WATCHDOG_FILE = Path("/run/rpi-supervisor/watchdog.state")
 
 DEFAULT_BRANCH = "main"
 SERVICE = "rsupd"
+
+API_PORT = 8090
+BEACON_PORT = 8091
 
 HEALTH_WAIT = 8
 ENABLE_ROLLBACK = True
@@ -55,12 +66,11 @@ def is_git_repo(path: Path) -> bool:
 
 
 def get_branch() -> str:
-    """Read channel file if present."""
     try:
         if CHANNEL_FILE.exists():
-            ch = CHANNEL_FILE.read_text().strip()
-            if ch:
-                return ch
+            branch = CHANNEL_FILE.read_text().strip()
+            if branch:
+                return branch
     except Exception:
         pass
     return DEFAULT_BRANCH
@@ -70,15 +80,84 @@ def get_rev(ref: str) -> str:
     return run(["git", "rev-parse", ref]).stdout.strip()
 
 
-def service_healthy() -> bool:
-    result = subprocess.run(
-        ["systemctl", "is-active", "--quiet", SERVICE]
-    )
-    return result.returncode == 0
-
-
 def restart_service():
     subprocess.run(["systemctl", "restart", SERVICE], check=False)
+
+
+def service_active() -> bool:
+    return subprocess.run(
+        ["systemctl", "is-active", "--quiet", SERVICE]
+    ).returncode == 0
+
+
+# ============================================================
+# HEALTH VALIDATION
+# ============================================================
+
+def validate_api() -> bool:
+    try:
+        with urlopen(f"http://127.0.0.1:{API_PORT}/health", timeout=3) as r:
+            return r.status == 200
+    except URLError:
+        return False
+
+
+def validate_status_endpoint() -> bool:
+    try:
+        with urlopen(f"http://127.0.0.1:{API_PORT}/api/status", timeout=3) as r:
+            if r.status != 200:
+                return False
+            json.loads(r.read().decode())
+            return True
+    except Exception:
+        return False
+
+
+def validate_beacon_socket() -> bool:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.bind(("0.0.0.0", BEACON_PORT))
+        s.close()
+        return False  # If bind succeeds, beacon NOT running
+    except OSError:
+        return True  # Port in use = beacon active
+
+
+def validate_watchdog() -> bool:
+    if not WATCHDOG_FILE.exists():
+        return False
+    try:
+        last = WATCHDOG_FILE.stat().st_mtime
+        return (time.time() - last) < 30
+    except Exception:
+        return False
+
+
+def validate_config() -> bool:
+    try:
+        cfg = configparser.ConfigParser()
+        cfg.read(CONFIG_FILE)
+        return True
+    except Exception:
+        return False
+
+
+def full_health_check() -> bool:
+    checks = {
+        "service": service_active(),
+        "api": validate_api(),
+        "status": validate_status_endpoint(),
+        "beacon": validate_beacon_socket(),
+        "watchdog": validate_watchdog(),
+        "config": validate_config(),
+    }
+
+    for name, ok in checks.items():
+        if not ok:
+            log(f"Health check FAILED: {name}")
+            return False
+
+    return True
 
 
 def rollback_to(commit: str):
@@ -100,18 +179,14 @@ def main():
 
     os.chdir(REPO_DIR)
 
-    # --------------------------------------------------------
-    # Fetch
-    # --------------------------------------------------------
+    # Fetch remote
     try:
-        run(["git", "fetch", "origin", branch])
+        run(["git", "fetch", "--prune", "origin", branch])
     except subprocess.CalledProcessError as e:
         log(f"Fetch failed: {e.stderr.strip()}")
         return 0
 
-    # --------------------------------------------------------
     # Compare revisions
-    # --------------------------------------------------------
     try:
         local = get_rev("HEAD")
         remote = get_rev(f"origin/{branch}")
@@ -125,44 +200,35 @@ def main():
 
     log(f"Update found — snapshot {local[:7]}")
 
-    # --------------------------------------------------------
-    # Pull update
-    # --------------------------------------------------------
+    # Fast-forward only
     try:
-        run(["git", "pull", "--ff-only", "origin", branch])
+        run(["git", "merge", "--ff-only", f"origin/{branch}"])
     except subprocess.CalledProcessError as e:
-        log(f"Pull failed: {e.stderr.strip()}")
+        log(f"Update failed: {e.stderr.strip()}")
         return 1
 
     log("Update applied — restarting service")
     restart_service()
 
-    # --------------------------------------------------------
-    # Health check window
-    # --------------------------------------------------------
     log("Waiting for service health check...")
     time.sleep(HEALTH_WAIT)
 
-    if service_healthy():
-        log("Service healthy — update kept")
+    if full_health_check():
+        log("Full health validation PASSED — update kept")
         return 0
 
-    log("Service FAILED after update")
+    log("Update FAILED health validation")
 
-    # --------------------------------------------------------
-    # Rollback if enabled
-    # --------------------------------------------------------
     if ENABLE_ROLLBACK:
         rollback_to(local)
-
         time.sleep(HEALTH_WAIT)
 
-        if service_healthy():
+        if full_health_check():
             log("Rollback successful")
             return 0
-        else:
-            log("Rollback FAILED — manual intervention required")
-            return 1
+
+        log("Rollback FAILED — manual intervention required")
+        return 1
 
     return 1
 
