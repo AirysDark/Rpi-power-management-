@@ -96,6 +96,7 @@ The fleet server stores:
     }
   }
 }
+```
 Features:
 HMAC signed beacons
 HMAC signed remote commands
