@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""
+Rpi Supervisor — Fleet Telemetry Agent
+
+Collects system health and writes fleet status.
+Optional HTTP push.
+
+RO-root safe.
+Atomic writes.
+Production hardened.
+"""
+
+import json
+import time
+import subprocess
+from pathlib import Path
+import socket
+import os
+import urllib.request
+
+# ============================================================
+# PATHS (RPI SUPERVISOR STANDARD)
+# ============================================================
+
+DEVICE_FILE = Path("/etc/rpi-supervisor/device.json")
+HEALTH_FILE = Path("/var/lib/rpi-supervisor/boot-health.json")
+
+OUTDIR = Path("/boot/rpi-supervisor/fleet")
+STATUS_FILE = OUTDIR / "status.json"
+
+# Optional remote endpoint ("" disables push)
+FLEET_ENDPOINT = ""
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def log(msg):
+    print(f"[rsup-fleet] {msg}", flush=True)
+
+
+def ensure_dirs():
+    try:
+        OUTDIR.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        log(f"mkdir failed: {e}")
+
+
+def atomic_write(path: Path, data: str):
+    """Write file atomically to prevent corruption."""
+    tmp = path.with_suffix(".tmp")
+
+    try:
+        tmp.write_text(data)
+        tmp.replace(path)
+    except Exception as e:
+        log(f"write failed: {e}")
+
+
+def get_uptime():
+    try:
+        with open("/proc/uptime") as f:
+            return float(f.read().split()[0])
+    except Exception:
+        return 0.0
+
+
+def get_hostname():
+    try:
+        return socket.gethostname()
+    except Exception:
+        return "unknown"
+
+
+def get_load():
+    try:
+        return os.getloadavg()[0]
+    except Exception:
+        return 0.0
+
+
+def read_json(path: Path):
+    if not path.exists():
+        return {}
+
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
+
+
+def push_remote(payload: dict):
+    if not FLEET_ENDPOINT:
+        return
+
+    try:
+        req = urllib.request.Request(
+            FLEET_ENDPOINT,
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        urllib.request.urlopen(req, timeout=5)
+        log("Pushed to fleet server")
+
+    except Exception as e:
+        log(f"Push failed: {e}")
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+    ensure_dirs()
+
+    device = read_json(DEVICE_FILE)
+    health = read_json(HEALTH_FILE)
+
+    status = {
+        "timestamp": int(time.time()),
+        "device": device,
+        "hostname": get_hostname(),
+        "uptime_sec": get_uptime(),
+        "load_1m": get_load(),
+        "boot_health": health,
+        "agent": "rsup-fleet",
+        "version": 1,
+    }
+
+    # ---------- write local status ----------
+    atomic_write(STATUS_FILE, json.dumps(status, indent=2))
+    log("Status updated")
+
+    # ---------- optional push ----------
+    push_remote(status)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,30 @@
+[Unit]
+Description=Rpi Supervisor — Device Key Bootstrap
+DefaultDependencies=no
+
+# must run before anything that needs keys
+Before=rsup-beacon.service
+Before=rsup-cmd-agent.service
+Before=rsup-node-api.service
+
+After=local-fs.target
+Requires=local-fs.target
+
+ConditionPathExists=!/etc/rpi-supervisor/device-key
+
+[Service]
+Type=oneshot
+ExecStart=/opt/rpi-supervisor/bin/rsup-key-bootstrap
+RemainAfterExit=yes
+
+# --- hardening ---
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/etc/rpi-supervisor /var/lib/rpi-supervisor
+
+TimeoutSec=30
+
+[Install]
+WantedBy=multi-user.target

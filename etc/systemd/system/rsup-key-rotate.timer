@@ -1,0 +1,21 @@
+[Unit]
+Description=Rpi Supervisor — Rotate device key weekly
+Documentation=man:systemd.timer(5)
+
+[Timer]
+# Weekly rotation
+OnCalendar=weekly
+
+# Run missed rotations after downtime
+Persistent=true
+
+# Small random delay to avoid fleet stampede
+RandomizedDelaySec=1h
+
+# Accuracy is fine for weekly jobs
+AccuracySec=1min
+
+Unit=rsup-key-rotate.service
+
+[Install]
+WantedBy=timers.target

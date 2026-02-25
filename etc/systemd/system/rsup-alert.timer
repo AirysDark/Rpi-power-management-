@@ -1,0 +1,19 @@
+[Unit]
+Description=Rpi Supervisor Fleet Alert Timer
+Documentation=man:systemd.timer(5)
+
+[Timer]
+# first run shortly after boot
+OnBootSec=3min
+
+# repeat interval
+OnUnitActiveSec=5min
+
+# ensure missed runs fire after downtime
+Persistent=true
+
+# what service this timer triggers
+Unit=rsup-alert.service
+
+[Install]
+WantedBy=timers.target

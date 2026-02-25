@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ============================================================
+# Rpi Supervisor — Device Key Rotation
+# ============================================================
+
+KEY="/etc/rpi-supervisor/device-key"
+NEXT="/etc/rpi-supervisor/device-key.next"
+EPOCH="/var/lib/rpi-supervisor/key-epoch"
+
+TMP_NEXT="${NEXT}.tmp"
+TMP_EPOCH="${EPOCH}.tmp"
+
+echo "[rsup-key-rotate] starting rotation"
+
+# --------------------------------------------------
+# ensure directories exist
+# --------------------------------------------------
+
+mkdir -p /etc/rpi-supervisor
+mkdir -p /var/lib/rpi-supervisor
+
+# --------------------------------------------------
+# ensure active key exists
+# --------------------------------------------------
+
+if [[ ! -f "$KEY" ]]; then
+  echo "[rsup-key-rotate] ERROR: missing active key"
+  exit 1
+fi
+
+chmod 600 "$KEY" || true
+
+# --------------------------------------------------
+# generate next key (atomic)
+# --------------------------------------------------
+
+echo "[rsup-key-rotate] generating next key"
+
+openssl rand -hex 32 > "$TMP_NEXT"
+chmod 600 "$TMP_NEXT"
+mv -f "$TMP_NEXT" "$NEXT"
+
+# --------------------------------------------------
+# bump epoch safely
+# --------------------------------------------------
+
+if [[ -f "$EPOCH" ]]; then
+  epoch=$(cat "$EPOCH" 2>/dev/null || echo 1)
+else
+  epoch=1
+fi
+
+# numeric safety
+if ! [[ "$epoch" =~ ^[0-9]+$ ]]; then
+  epoch=1
+fi
+
+epoch=$((epoch + 1))
+
+echo "$epoch" > "$TMP_EPOCH"
+mv -f "$TMP_EPOCH" "$EPOCH"
+
+chmod 644 "$EPOCH" || true
+
+# --------------------------------------------------
+# done
+# --------------------------------------------------
+
+echo "[rsup-key-rotate] staged epoch $epoch"
+echo "[rsup-key-rotate] rotation staged — waiting for fleet accept"
+exit 0

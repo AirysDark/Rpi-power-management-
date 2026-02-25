@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rpi Supervisor Fleet</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Theme FIRST -->
+<link rel="stylesheet" href="theme.css">
+
+<!-- App styles SECOND -->
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<!-- ===================================================== -->
+<!-- Top Bar -->
+<!-- ===================================================== -->
+
+<div class="topbar">
+  <h1>🛰️ Pi Fleet</h1>
+  <span id="refresh" class="refresh">refreshing…</span>
+</div>
+
+<!-- ===================================================== -->
+<!-- Summary -->
+<!-- ===================================================== -->
+
+<div class="container">
+
+  <div id="summary" class="summary">Loading fleet…</div>
+
+  <div class="bar">
+    <div id="healthBar" class="bar-inner"></div>
+  </div>
+
+  <div id="grid" class="grid"></div>
+
+</div>
+
+<!-- ===================================================== -->
+<!-- Scripts -->
+<!-- ===================================================== -->
+
+<script src="app.js"></script>
+
+</body>
+</html>

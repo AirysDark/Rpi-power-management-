@@ -1,0 +1,25 @@
+[Unit]
+Description=Rpi Supervisor — Fleet Telemetry Timer
+Documentation=man:systemd.timer(5)
+PartOf=rsup-fleet-agent.service
+
+[Timer]
+# first run after boot
+OnBootSec=2min
+
+# repeat interval
+OnUnitActiveSec=5min
+
+# catch up if missed while powered off
+Persistent=true
+
+# accuracy window (reduces wakeups but keeps timing tight)
+AccuracySec=30s
+
+# jitter to prevent fleet thundering herd
+RandomizedDelaySec=20s
+
+Unit=rsup-fleet-agent.service
+
+[Install]
+WantedBy=timers.target

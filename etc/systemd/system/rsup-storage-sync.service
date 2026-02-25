@@ -1,0 +1,27 @@
+[Unit]
+Description=Rpi Supervisor — Periodic Storage Sync
+Documentation=man:sync(1)
+DefaultDependencies=no
+After=local-fs.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sync
+
+# --- safety hardening ---
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+# allow writing where needed
+ReadWritePaths=/run /var
+
+[Install]
+WantedBy=multi-user.target

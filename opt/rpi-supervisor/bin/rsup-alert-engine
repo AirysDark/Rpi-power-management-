@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""
+Fleet email alert engine (PRODUCTION)
+
+Features:
+- Boot health monitoring
+- Rate limiting (no email spam)
+- Persistent alert state
+- Device-aware subjects
+- Hardened SMTP handling
+- Timeout protection
+- RO-root safe
+
+Safe for fleet deployments.
+"""
+
+import smtplib
+import json
+import time
+import socket
+from email.message import EmailMessage
+from pathlib import Path
+
+# ============================================================
+# PATHS
+# ============================================================
+
+CONFIG = Path("/etc/alert.json")
+STATUS = Path("/boot/fleet/status.json")
+STATE  = Path("/var/lib/rpi-supervisor-fleet/alerts.json")
+
+ALERT_COOLDOWN = 1800  # seconds (30 min)
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def log(msg):
+    print(f"[rsup-alert] {msg}", flush=True)
+
+
+def load_json(path, default=None):
+    if default is None:
+        default = {}
+    try:
+        if path.exists():
+            return json.loads(path.read_text())
+    except Exception as e:
+        log(f"JSON load failed {path}: {e}")
+    return default
+
+
+def save_json(path, data):
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2))
+    except Exception as e:
+        log(f"JSON save failed {path}: {e}")
+
+
+def get_hostname():
+    try:
+        return socket.gethostname()
+    except Exception:
+        return "unknown"
+
+
+# ============================================================
+# EMAIL
+# ============================================================
+
+def send_mail(cfg, subject, body):
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = cfg["from"]
+        msg["To"] = cfg["to"]
+        msg.set_content(body)
+
+        with smtplib.SMTP(cfg["smtp"], cfg["port"], timeout=15) as s:
+            if cfg.get("tls"):
+                s.starttls()
+
+            if cfg.get("user"):
+                s.login(cfg["user"], cfg.get("pass", ""))
+
+            s.send_message(msg)
+
+        log("alert email sent")
+        return True
+
+    except Exception as e:
+        log(f"email send failed: {e}")
+        return False
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+    cfg = load_json(CONFIG)
+    status = load_json(STATUS)
+    state = load_json(STATE)
+
+    # ---- config validation ----
+    required = ["smtp", "port", "from", "to"]
+    for r in required:
+        if r not in cfg:
+            log(f"config missing: {r}")
+            return
+
+    hostname = get_hostname()
+    device_id = status.get("device", {}).get("device_id", hostname)
+    score = status.get("boot_health", {}).get("score", 100)
+
+    now = int(time.time())
+    last_sent = state.get("last_sent", 0)
+
+    # ========================================================
+    # CRITICAL ALERT
+    # ========================================================
+
+    if score < 50:
+        # ---- cooldown check ----
+        if now - last_sent < ALERT_COOLDOWN:
+            log("alert suppressed by cooldown")
+            return
+
+        subject = f"🚨 Pi CRITICAL — {device_id}"
+        body = (
+            f"Device: {device_id}\n"
+            f"Host: {hostname}\n"
+            f"Health score: {score}\n"
+            f"Time: {time.ctime(now)}\n"
+        )
+
+        if send_mail(cfg, subject, body):
+            state["last_sent"] = now
+            state["last_score"] = score
+            save_json(STATE, state)
+
+    else:
+        # ---- recovery notification (optional) ----
+        if state.get("last_score", 100) < 50:
+            subject = f"✅ Pi RECOVERED — {device_id}"
+            body = (
+                f"Device recovered.\n"
+                f"Health score: {score}\n"
+                f"Time: {time.ctime(now)}\n"
+            )
+
+            if send_mail(cfg, subject, body):
+                state["last_sent"] = now
+                state["last_score"] = score
+                save_json(STATE, state)
+
+
+# ============================================================
+
+if __name__ == "__main__":
+    main()

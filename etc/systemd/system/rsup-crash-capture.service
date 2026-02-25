@@ -1,0 +1,32 @@
+[Unit]
+Description=Rpi Supervisor Crash-Only Log Capture
+Documentation=man:rsup-crash-capture
+DefaultDependencies=no
+
+# Must run early but after filesystems exist
+After=local-fs.target systemd-journald.service
+Before=multi-user.target
+
+# Only run if binary exists
+ConditionPathExists=/opt/rpi-supervisor/bin/rsup-crash-capture
+
+[Service]
+Type=oneshot
+ExecStart=/opt/rpi-supervisor/bin/rsup-crash-capture
+
+# Hardening (safe for your script)
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+# Timeout safety
+TimeoutSec=30
+
+[Install]
+WantedBy=multi-user.target

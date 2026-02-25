@@ -1,0 +1,35 @@
+[Unit]
+Description=Rpi Supervisor — Boot health scoring
+Documentation=man:rsup-boot-health
+After=multi-user.target systemd-journald.service
+Wants=multi-user.target
+
+# Only run on real boot (not in containers)
+ConditionPathExists=/opt/rpi-supervisor/bin/rsup-boot-health
+
+[Service]
+Type=oneshot
+ExecStart=/opt/rpi-supervisor/bin/rsup-boot-health
+TimeoutStartSec=60
+
+# --- safety ---
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+
+# Allow writing where needed
+ReadWritePaths=/var/lib/rpi-supervisor /run/rpi-supervisor
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

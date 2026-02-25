@@ -1,0 +1,14 @@
+{
+  "devices": {
+    "pi-01": {
+      "active": "HEXKEY",
+      "next": "HEXKEY",
+      "epoch": 3
+    },
+    "pi-02": {
+      "active": "HEXKEY",
+      "next": "HEXKEY",
+      "epoch": 3
+    }
+  }
+}

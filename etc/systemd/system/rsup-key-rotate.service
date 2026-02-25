@@ -1,0 +1,40 @@
+[Unit]
+Description=Rpi Supervisor — Rotate device key
+Documentation=man:rsup-key-rotate
+Wants=network-online.target
+After=network-online.target
+
+# Do not run during shutdown
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/rpi-supervisor/bin/rsup-key-rotate
+
+# ---- hardening ----
+User=root
+Group=root
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+# Needs write access to these
+ReadWritePaths=
+    /etc/rpi-supervisor
+    /var/lib/rpi-supervisor
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

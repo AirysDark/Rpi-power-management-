@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[rsup] ===== STAGED SHUTDOWN START ====="
+
+# ============================================================
+# CONFIG — EDIT FOR YOUR SYSTEM
+# ============================================================
+
+CRITICAL_SERVICES=(
+  gitea
+)
+
+SERVICE_STOP_TIMEOUT=10
+GLOBAL_TIMEOUT=45
+
+WATCHDOG_FILE="/run/rpi-supervisor/shutdown.watchdog"
+CLEAN_FLAG="/run/rpi-supervisor/clean-shutdown.flag"
+IO_FREEZE="/opt/rpi-supervisor/bin/rsup-iofreeze"
+
+# ensure runtime dir exists
+mkdir -p /run/rpi-supervisor
+
+# ============================================================
+# WATCHDOG — guarantees shutdown completes
+# ============================================================
+
+(
+  sleep "$GLOBAL_TIMEOUT"
+  echo "[rsup] WATCHDOG: forcing shutdown"
+  sync
+  /sbin/shutdown -h now
+) &
+
+WATCHDOG_PID=$!
+echo "$WATCHDOG_PID" > "$WATCHDOG_FILE"
+
+cleanup_watchdog() {
+  if [[ -f "$WATCHDOG_FILE" ]]; then
+    kill "$(cat "$WATCHDOG_FILE")" 2>/dev/null || true
+    rm -f "$WATCHDOG_FILE"
+  fi
+}
+trap cleanup_watchdog EXIT
+
+# ============================================================
+# HELPER — graceful service stop
+# ============================================================
+
+stop_service() {
+  local svc="$1"
+
+  if ! systemctl list-unit-files --type=service --no-legend \
+       | awk '{print $1}' | grep -qx "${svc}.service"; then
+    echo "[rsup] Service not found: $svc"
+    return
+  fi
+
+  if ! systemctl is-active --quiet "$svc"; then
+    echo "[rsup] Already stopped: $svc"
+    return
+  fi
+
+  echo "[rsup] Stopping $svc"
+  systemctl stop "$svc" || true
+
+  local waited=0
+  while systemctl is-active --quiet "$svc"; do
+    sleep 1
+    waited=$((waited + 1))
+
+    if (( waited >= SERVICE_STOP_TIMEOUT )); then
+      echo "[rsup] TIMEOUT stopping $svc — forcing kill"
+      systemctl kill "$svc" || true
+      break
+    fi
+  done
+
+  echo "[rsup] $svc stopped"
+}
+
+# ============================================================
+# STAGED SERVICE STOP
+# ============================================================
+
+for svc in "${CRITICAL_SERVICES[@]}"; do
+  stop_service "$svc"
+done
+
+# ============================================================
+# PRE-SHUTDOWN I/O FREEZE
+# ============================================================
+
+if [[ -x "$IO_FREEZE" ]]; then
+  echo "[rsup] Running I/O freeze"
+  "$IO_FREEZE" || true
+fi
+
+# ============================================================
+# MARK CLEAN SHUTDOWN (CRITICAL FOR CRASH DETECTION)
+# ============================================================
+
+echo "[rsup] Marking clean shutdown"
+touch "$CLEAN_FLAG"
+
+# ============================================================
+# FINAL DISK FLUSH
+# ============================================================
+
+echo "[rsup] Syncing disks"
+sync
+sleep 1
+
+echo "[rsup] ===== SYSTEM HALT ====="
+
+/sbin/shutdown -h now

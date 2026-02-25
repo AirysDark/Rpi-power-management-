@@ -1,0 +1,5 @@
+Rpi Supervisor Fleet
+component=fleet
+version=1.0.0
+api=1
+build=2026-02-26

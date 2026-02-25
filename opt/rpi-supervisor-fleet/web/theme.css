@@ -1,0 +1,121 @@
+/* =========================================================
+   Rpi Supervisor — Global Theme
+   Dark appliance UI
+   ========================================================= */
+
+:root{
+  --rsup-bg:#0B0F14;
+  --rsup-panel:#121922;
+  --rsup-panel2:#0F151D;
+  --rsup-border-soft:#1A2431;
+  --rsup-text:#E6E6E6;
+  --rsup-accent:#FF6A00;
+  --rsup-success:#2ecc71;
+  --rsup-danger:#FF4D4D;
+  --rsup-radius:10px;
+}
+
+/* =========================================================
+   Base
+   ========================================================= */
+
+*{
+  box-sizing:border-box;
+}
+
+body{
+  margin:0;
+  background:var(--rsup-bg);
+  color:var(--rsup-text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto;
+}
+
+/* =========================================================
+   Top Bar
+   ========================================================= */
+
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 20px;
+  background:var(--rsup-panel2);
+  border-bottom:1px solid var(--rsup-border-soft);
+}
+
+/* =========================================================
+   Cards
+   ========================================================= */
+
+.card{
+  background:var(--rsup-panel);
+  border:1px solid var(--rsup-border-soft);
+  border-radius:var(--rsup-radius);
+  padding:16px;
+  margin:20px;
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+
+.card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 6px 18px rgba(0,0,0,.35);
+}
+
+/* =========================================================
+   Lists
+   ========================================================= */
+
+.queue-item,
+.notification{
+  padding:6px 0;
+  border-bottom:1px solid var(--rsup-border-soft);
+}
+
+.queue-item:last-child,
+.notification:last-child{
+  border-bottom:none;
+}
+
+/* =========================================================
+   Badges
+   ========================================================= */
+
+.badge{
+  display:inline-block;
+  background:var(--rsup-accent);
+  padding:3px 8px;
+  border-radius:20px;
+  font-size:12px;
+  font-weight:600;
+}
+
+/* =========================================================
+   Status helpers
+   ========================================================= */
+
+.badge.success{
+  background:var(--rsup-success);
+}
+
+.badge.danger{
+  background:var(--rsup-danger);
+}
+
+/* =========================================================
+   Utility
+   ========================================================= */
+
+.muted{
+  opacity:.7;
+}
+
+.flex{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+.grid{
+  display:grid;
+  gap:16px;
+}

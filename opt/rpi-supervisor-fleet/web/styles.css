@@ -1,0 +1,129 @@
+:root {
+  --bg:#0b0f14;
+  --card:#161b22;
+  --border:#30363d;
+  --text:#e6edf3;
+  --muted:#8b949e;
+  --good:#2ea043;
+  --warn:#d29922;
+  --bad:#f85149;
+  --accent:#58a6ff;
+}
+
+body {
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto;
+  margin:20px;
+}
+
+h1 {
+  color:var(--accent);
+  margin-bottom:6px;
+}
+
+.summary {
+  margin-bottom:18px;
+  color:var(--muted);
+  font-size:14px;
+}
+
+.grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:16px;
+}
+
+.card {
+  background:var(--card);
+  padding:16px;
+  border-radius:12px;
+  box-shadow:0 0 0 1px var(--border);
+  transition:.15s ease;
+}
+
+.card:hover {
+  transform:translateY(-2px);
+}
+
+.good { border-left:4px solid var(--good); }
+.warn { border-left:4px solid var(--warn); }
+.bad  { border-left:4px solid var(--bad); }
+.offline { border-left:4px solid #6e7681; opacity:.65; }
+
+.small {
+  color:var(--muted);
+  font-size:12px;
+}
+
+.badge {
+  display:inline-block;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+  margin-left:6px;
+}
+
+.badge.good { background:rgba(46,160,67,.15); color:var(--good); }
+.badge.warn { background:rgba(210,153,34,.18); color:var(--warn); }
+.badge.bad  { background:rgba(248,81,73,.18); color:var(--bad); }
+.badge.offline { background:rgba(110,118,129,.25); color:#c9d1d9; }
+
+.status {
+  margin-top:6px;
+  font-size:12px;
+  color:var(--muted);
+}
+
+.refresh {
+  float:right;
+  font-size:12px;
+  color:var(--muted);
+}
+
+.bar {
+  height:6px;
+  background:#222;
+  border-radius:999px;
+  overflow:hidden;
+  margin-top:10px;
+}
+
+.bar-inner {
+  height:100%;
+  background:var(--accent);
+  width:0%;
+  transition:width .4s ease;
+}
+
+.cmds {
+  margin-top:10px;
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+
+button {
+  background:#21262d;
+  color:#e6edf3;
+  border:1px solid #30363d;
+  border-radius:6px;
+  padding:4px 10px;
+  font-size:12px;
+  cursor:pointer;
+}
+
+button:hover {
+  background:#30363d;
+}
+
+button:disabled {
+  opacity:.4;
+  cursor:not-allowed;
+}
+
+button.busy {
+  background:#58a6ff;
+  color:#000;
+}

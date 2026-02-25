@@ -1,6 +1,0 @@
-[Unit]
-Description=Rotate device key
-
-[Service]
-Type=oneshot
-ExecStart=/opt/pm-rotate-device-key

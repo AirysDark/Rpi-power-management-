@@ -1,0 +1,28 @@
+[Unit]
+Description=Rpi Supervisor — Fleet Telemetry Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/rpi-supervisor/bin/rsup-fleet-agent
+Restart=always
+RestartSec=5
+
+# --- security hardening ---
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run /var/lib/rpi-supervisor
+
+# --- logging ---
+StandardOutput=journal
+StandardError=journal
+
+# --- shutdown behavior ---
+TimeoutStopSec=10
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

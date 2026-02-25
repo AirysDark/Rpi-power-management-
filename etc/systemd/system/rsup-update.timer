@@ -1,0 +1,26 @@
+[Unit]
+Description=Rpi Supervisor Auto Update Timer
+Documentation=man:systemd.timer(5)
+Wants=network-online.target
+After=network-online.target
+
+[Timer]
+# First run after boot
+OnBootSec=10min
+
+# Repeat interval
+OnUnitActiveSec=6h
+
+# Prevent fleet thundering herd
+RandomizedDelaySec=5min
+
+# Catch up if system was offline
+Persistent=true
+
+# Accuracy window (reduces wakeups)
+AccuracySec=1min
+
+Unit=rsup-update.service
+
+[Install]
+WantedBy=timers.target

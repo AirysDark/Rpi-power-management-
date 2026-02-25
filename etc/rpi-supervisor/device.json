@@ -1,0 +1,5 @@
+{
+  "device_id": "pi-node-01",
+  "role": "gitea-node",
+  "site": "garage-lab"
+}

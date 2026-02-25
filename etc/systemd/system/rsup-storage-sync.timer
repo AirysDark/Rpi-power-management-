@@ -1,0 +1,15 @@
+[Unit]
+Description=Rpi Supervisor — Periodic Storage Sync Timer
+Documentation=man:sync(1)
+Requires=rsup-storage-sync.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+AccuracySec=30s
+RandomizedDelaySec=15s
+Unit=rsup-storage-sync.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""
+Rpi Supervisor — Node Telemetry Endpoint
+
+Serves:
+  GET /api/v1/status
+
+Features:
+- extremely low overhead
+- RO-root safe
+- hardened path handling
+- API versioned
+- production ready
+"""
+
+import json
+from pathlib import Path
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+
+PORT = 8090
+
+# NEW standardized location
+STATUS_FILE = Path("/var/lib/rpi-supervisor/boot-health.json")
+
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def log(msg: str):
+    print(f"[rsup-node-api] {msg}", flush=True)
+
+
+def read_status_bytes() -> bytes:
+    """Safe status reader (never throws)."""
+    try:
+        if not STATUS_FILE.exists():
+            return b"{}"
+        return STATUS_FILE.read_bytes()
+    except Exception:
+        return b"{}"
+
+
+# ============================================================
+# HTTP HANDLER
+# ============================================================
+
+class Handler(BaseHTTPRequestHandler):
+
+    def log_message(self, format, *args):
+        # silence default noisy HTTP logging
+        return
+
+    def do_GET(self):
+        # ---- status endpoint ----
+        if self.path == "/api/v1/status":
+            body = read_status_bytes()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        # ---- legacy compatibility (optional but recommended) ----
+        if self.path == "/api/status":
+            body = read_status_bytes()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        # ---- not found ----
+        self.send_response(404)
+        self.end_headers()
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+    log(f"serving on :{PORT}")
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

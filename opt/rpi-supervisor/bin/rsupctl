@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+"""
+rsupctl — Rpi Supervisor control tool
+
+Local control and inspection utility.
+
+Production ready.
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+# ============================================================
+# PATHS
+# ============================================================
+
+BASE_ETC = Path("/etc/rpi-supervisor")
+BASE_VAR = Path("/var/lib/rpi-supervisor")
+VERSION_FILE = Path("/opt/rpi-supervisor/version")
+
+DEVICE_FILE = BASE_ETC / "device.json"
+KEY_FILE = BASE_ETC / "device-key"
+KEY_NEXT_FILE = BASE_ETC / "device-key.next"
+EPOCH_FILE = BASE_VAR / "key-epoch"
+HEALTH_FILE = BASE_VAR / "boot-health.json"
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def log(msg):
+    print(msg)
+
+
+def run(cmd):
+    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+
+def read_text(path, default=""):
+    try:
+        return path.read_text().strip()
+    except Exception:
+        return default
+
+
+def read_json(path):
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
+
+
+def print_json(data):
+    print(json.dumps(data, indent=2))
+
+
+# ============================================================
+# COMMANDS
+# ============================================================
+
+def cmd_status(args):
+    device = read_json(DEVICE_FILE)
+    health = read_json(HEALTH_FILE)
+
+    data = {
+        "device": device,
+        "health": health,
+        "uptime_sec": int(time.time() - psutil_boot_time()),
+    }
+
+    if args.json:
+        print_json(data)
+    else:
+        log("=== Rpi Supervisor Status ===")
+        log(f"Device: {device.get('device_id','unknown')}")
+        log(f"Role:   {device.get('role','-')}")
+        log(f"Site:   {device.get('site','-')}")
+        log(f"Health: {health.get('score','-')}")
+        log(f"Uptime: {data['uptime_sec']} sec")
+
+
+def cmd_health(args):
+    health = read_json(HEALTH_FILE)
+
+    if args.json:
+        print_json(health)
+    else:
+        log("=== Boot Health ===")
+        log(json.dumps(health, indent=2))
+
+
+def cmd_reboot(args):
+    log("[rsupctl] reboot requested")
+    subprocess.Popen(["reboot"])
+
+
+def cmd_shutdown(args):
+    log("[rsupctl] shutdown requested")
+    subprocess.Popen(["shutdown", "-h", "now"])
+
+
+def cmd_freeze(args):
+    script = "/opt/rpi-supervisor/bin/rsup-iofreeze"
+    if os.path.exists(script):
+        subprocess.Popen([script])
+        log("[rsupctl] IO freeze triggered")
+    else:
+        log("rsup-iofreeze not found")
+        sys.exit(1)
+
+
+def cmd_keyinfo(args):
+    data = {
+        "epoch": read_text(EPOCH_FILE, "0"),
+        "active_key_present": KEY_FILE.exists(),
+        "next_key_present": KEY_NEXT_FILE.exists(),
+    }
+
+    if args.json:
+        print_json(data)
+    else:
+        log("=== Key Status ===")
+        for k, v in data.items():
+            log(f"{k}: {v}")
+
+
+def cmd_version(args):
+    ver = read_text(VERSION_FILE, "unknown")
+
+    if args.json:
+        print_json({"version": ver})
+    else:
+        log(f"Rpi Supervisor version: {ver}")
+
+
+def cmd_service(args):
+    svc = args.name
+    result = run(["systemctl", "is-active", svc])
+
+    if args.json:
+        print_json({"service": svc, "state": result.stdout.strip()})
+    else:
+        log(f"{svc}: {result.stdout.strip()}")
+
+
+# ============================================================
+# BOOT TIME (no psutil dependency)
+# ============================================================
+
+def psutil_boot_time():
+    """Return boot time without external deps."""
+    try:
+        with open("/proc/stat") as f:
+            for line in f:
+                if line.startswith("btime"):
+                    return int(line.split()[1])
+    except Exception:
+        pass
+    return int(time.time())
+
+
+# ============================================================
+# CLI
+# ============================================================
+
+def main():
+    parser = argparse.ArgumentParser(prog="rsupctl")
+    parser.add_argument("--json", action="store_true", help="JSON output")
+
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("status")
+    sub.add_parser("health")
+    sub.add_parser("reboot")
+    sub.add_parser("shutdown")
+    sub.add_parser("freeze")
+    sub.add_parser("key-info")
+    sub.add_parser("version")
+
+    svc = sub.add_parser("service")
+    svc.add_argument("name")
+
+    args = parser.parse_args()
+
+    table = {
+        "status": cmd_status,
+        "health": cmd_health,
+        "reboot": cmd_reboot,
+        "shutdown": cmd_shutdown,
+        "freeze": cmd_freeze,
+        "key-info": cmd_keyinfo,
+        "version": cmd_version,
+        "service": cmd_service,
+    }
+
+    table[args.cmd](args)
+
+
+if __name__ == "__main__":
+    main()

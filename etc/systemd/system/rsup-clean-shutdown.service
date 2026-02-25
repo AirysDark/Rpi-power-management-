@@ -1,0 +1,20 @@
+[Unit]
+Description=Rpi Supervisor — Mark Clean Shutdown
+DefaultDependencies=no
+Before=shutdown.target reboot.target halt.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rsup-mark-clean-shutdown
+TimeoutSec=5
+RemainAfterExit=yes
+
+# --- hardening ---
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/rpi-supervisor
+
+[Install]
+WantedBy=halt.target reboot.target shutdown.target

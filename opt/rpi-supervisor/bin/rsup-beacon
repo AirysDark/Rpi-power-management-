@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""
+Rpi Supervisor — Fleet auto-discovery beacon (PRODUCTION v4)
+
+Features:
+- Per-device key support
+- Automatic key rotation support
+- Active + staged key handling
+- Epoch advertisement
+- Replay protection timestamp
+- Hardened networking
+- Production safe
+"""
+
+import socket
+import json
+import time
+import hmac
+import hashlib
+import sys
+from pathlib import Path
+
+# ---- shared config (optional but preferred) ----
+try:
+    from rpi_supervisor.config import load_fleet_server
+    FLEET_SERVER = load_fleet_server()
+except Exception:
+    FLEET_SERVER = "fleet.local"
+    # do NOT fail — beacon must still run
+
+# ============================================================
+# CONFIG
+# ============================================================
+
+PORT = 8091
+INTERVAL = 5
+
+DEVICE_KEY_FILE = Path("/etc/rpi-supervisor/device-key")
+NEXT_KEY_FILE   = Path("/etc/rpi-supervisor/device-key.next")
+DEVICE_FILE     = Path("/etc/rpi-supervisor/device.json")
+EPOCH_FILE      = Path("/var/lib/rpi-supervisor/key-epoch")
+
+VERSION = "4.0"
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def log(msg):
+    print(f"[rsup-beacon] {msg}", flush=True)
+
+
+# ------------------------------------------------------------
+# epoch handling
+# ------------------------------------------------------------
+
+def get_epoch():
+    try:
+        val = int(EPOCH_FILE.read_text().strip())
+        return max(val, 1)
+    except Exception:
+        return 1
+
+
+# ------------------------------------------------------------
+# key loading
+# ------------------------------------------------------------
+
+def load_active_key():
+    if not DEVICE_KEY_FILE.exists():
+        log("FATAL: missing device-key")
+        sys.exit(1)
+
+    key = DEVICE_KEY_FILE.read_text().strip()
+
+    if len(key) < 16:
+        log("FATAL: device key too short")
+        sys.exit(1)
+
+    return key.encode()
+
+
+def load_next_key():
+    if not NEXT_KEY_FILE.exists():
+        return None
+
+    try:
+        key = NEXT_KEY_FILE.read_text().strip()
+        if len(key) >= 16:
+            return key.encode()
+    except Exception:
+        pass
+
+    return None
+
+
+# ------------------------------------------------------------
+# device info
+# ------------------------------------------------------------
+
+def load_device():
+    if not DEVICE_FILE.exists():
+        log("WARNING: missing device.json")
+        return {"device_id": "unknown"}
+
+    try:
+        return json.loads(DEVICE_FILE.read_text())
+    except Exception:
+        return {"device_id": "unknown"}
+
+
+def get_hostname():
+    try:
+        return socket.gethostname()
+    except Exception:
+        return "unknown"
+
+
+# ------------------------------------------------------------
+# signing
+# ------------------------------------------------------------
+
+def sign_payload(payload, key):
+    clean = dict(payload)
+    clean.pop("sig", None)
+
+    msg = json.dumps(
+        clean,
+        sort_keys=True,
+        separators=(",", ":")
+    ).encode()
+
+    return hmac.new(key, msg, hashlib.sha256).hexdigest()
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+    if FLEET_SERVER:
+        log(f"fleet server: {FLEET_SERVER}")
+
+    active_key = load_active_key()
+    next_key = load_next_key()
+    device = load_device()
+
+    epoch = get_epoch()
+    advertised_epoch = epoch
+
+    # ---- rotation awareness ----
+    if next_key:
+        advertised_epoch = epoch + 1
+        log(f"rotation staged — advertising epoch {advertised_epoch}")
+    else:
+        log(f"using active epoch {epoch}")
+
+    if device.get("device_id") in (None, "", "unknown"):
+        log("WARNING: device_id not properly set")
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    # broadcast enabled
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+    # fast restart
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    log("secure beacon started")
+
+    while True:
+        try:
+            payload = {
+                "type": "pm-node",
+                "version": VERSION,
+                "device": device,
+                "hostname": get_hostname(),
+                "port": 8090,
+                "ts": int(time.time()),
+                "epoch": advertised_epoch,
+            }
+
+            # IMPORTANT: always sign with ACTIVE key
+            payload["sig"] = sign_payload(payload, active_key)
+
+            sock.sendto(
+                json.dumps(payload).encode(),
+                ("255.255.255.255", PORT),
+            )
+
+        except Exception as e:
+            log(f"beacon error: {e}")
+
+        time.sleep(INTERVAL)
+
+
+if __name__ == "__main__":
+    main()

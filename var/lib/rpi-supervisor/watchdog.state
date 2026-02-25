@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""
+Rpi Supervisor — Watchdog State Manager
+
+Maintains:
+/run/rpi-supervisor/watchdog.state
+
+Purpose:
+- supervisor heartbeat
+- safe power visibility
+- fleet visibility
+- crash detection support
+
+Safe for frequent updates.
+"""
+
+import json
+import time
+from pathlib import Path
+import threading
+
+# ============================================================
+# PATHS
+# ============================================================
+
+RUN_DIR = Path("/run/rpi-supervisor")
+STATE_FILE = RUN_DIR / "watchdog.state"
+
+# write frequency
+HEARTBEAT_INTERVAL = 10
+
+# thread control
+_stop_flag = False
+_state_lock = threading.Lock()
+
+# in-memory state
+_state = {
+    "timestamp": 0,
+    "alive": True,
+    "safe_power": False,
+    "last_event": "startup",
+}
+
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def _ensure_dirs():
+    RUN_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _atomic_write(path: Path, data: dict):
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2))
+    tmp.replace(path)
+
+
+def _update_timestamp():
+    _state["timestamp"] = int(time.time())
+
+
+def _write_state():
+    _ensure_dirs()
+    _update_timestamp()
+    _atomic_write(STATE_FILE, _state)
+
+
+# ============================================================
+# PUBLIC API
+# ============================================================
+
+def set_safe_power(enabled: bool):
+    """Update SAFE power state."""
+    with _state_lock:
+        _state["safe_power"] = bool(enabled)
+        _state["last_event"] = "safe_power_on" if enabled else "running"
+        _write_state()
+
+
+def mark_event(name: str):
+    """Record significant supervisor event."""
+    with _state_lock:
+        _state["last_event"] = name
+        _write_state()
+
+
+def heartbeat_loop():
+    """Background heartbeat writer."""
+    global _stop_flag
+
+    while not _stop_flag:
+        try:
+            with _state_lock:
+                _state["alive"] = True
+                _write_state()
+        except Exception:
+            pass
+
+        time.sleep(HEARTBEAT_INTERVAL)
+
+
+def start_background_thread():
+    """Start watchdog heartbeat thread."""
+    t = threading.Thread(target=heartbeat_loop, daemon=True)
+    t.start()
+    return t
+
+
+def stop():
+    """Stop heartbeat (used during shutdown)."""
+    global _stop_flag
+    _stop_flag = True
+
+    with _state_lock:
+        _state["alive"] = False
+        _state["last_event"] = "stopping"
+        _write_state()

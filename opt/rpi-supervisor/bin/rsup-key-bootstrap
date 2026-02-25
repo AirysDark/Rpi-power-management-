@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ============================================================
+# Rpi Supervisor — Device Key Bootstrap
+# ============================================================
+
+KEY="/etc/rpi-supervisor/device-key"
+NEXT="/etc/rpi-supervisor/device-key.next"
+EPOCH="/var/lib/rpi-supervisor/key-epoch"
+
+echo "[rsup-key] bootstrap starting"
+
+# --------------------------------------------------
+# Ensure directories exist
+# --------------------------------------------------
+
+mkdir -p /etc/rpi-supervisor
+mkdir -p /var/lib/rpi-supervisor
+
+# --------------------------------------------------
+# ACTIVE KEY
+# --------------------------------------------------
+
+if [[ ! -f "$KEY" ]]; then
+  echo "[rsup-key] generating device key"
+  openssl rand -hex 32 > "$KEY"
+  chmod 600 "$KEY"
+else
+  echo "[rsup-key] device key exists"
+fi
+
+# --------------------------------------------------
+# CLEAN STALE NEXT KEY
+# --------------------------------------------------
+
+if [[ -f "$NEXT" ]]; then
+  echo "[rsup-key] removing stale next key"
+  rm -f "$NEXT"
+fi
+
+# --------------------------------------------------
+# EPOCH INIT
+# --------------------------------------------------
+
+if [[ ! -f "$EPOCH" ]]; then
+  echo "[rsup-key] initializing epoch"
+  echo "1" > "$EPOCH"
+  chmod 644 "$EPOCH"
+else
+  echo "[rsup-key] epoch exists ($(cat "$EPOCH"))"
+fi
+
+echo "[rsup-key] bootstrap complete"

@@ -1,0 +1,43 @@
+[Unit]
+Description=Rpi Supervisor Fleet Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# --- execution ---
+ExecStart=/usr/bin/python3 /opt/rpi-supervisor-fleet/rsup-fleetd
+WorkingDirectory=/opt/rpi-supervisor-fleet
+
+# --- reliability ---
+Restart=always
+RestartSec=3
+StartLimitIntervalSec=0
+
+# --- identity ---
+User=root
+Group=root
+
+# --- security hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+RestrictRealtime=true
+RestrictSUIDSGID=true
+
+# needs network + file access
+ReadWritePaths=/opt/rpi-supervisor-fleet /var/lib/rpi-supervisor-fleet
+
+# --- logging ---
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

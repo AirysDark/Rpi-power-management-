@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ============================================================
+# Rpi Supervisor — Mark Clean Shutdown
+#
+# Purpose:
+#   Marks that the system is shutting down cleanly so the
+#   crash-capture service can detect unclean boots.
+#
+# Safe for:
+#   - RO root systems
+#   - tmpfs /run
+#   - repeated execution
+# ============================================================
+
+FLAG_DIR="/run/rpi-supervisor"
+FLAG_FILE="$FLAG_DIR/clean-shutdown.flag"
+
+log() {
+  echo "[rsup-clean] $*" >&2 || true
+}
+
+# ------------------------------------------------------------
+# ensure runtime directory exists
+# ------------------------------------------------------------
+
+if [[ ! -d "$FLAG_DIR" ]]; then
+  mkdir -p "$FLAG_DIR" 2>/dev/null || true
+fi
+
+# ------------------------------------------------------------
+# create marker atomically
+# ------------------------------------------------------------
+
+tmp="${FLAG_FILE}.tmp.$$"
+
+{
+  echo "clean"
+  echo "ts=$(date +%s)"
+} > "$tmp" 2>/dev/null || true
+
+mv -f "$tmp" "$FLAG_FILE" 2>/dev/null || true
+
+# ------------------------------------------------------------
+# best-effort sync (non-blocking)
+# ------------------------------------------------------------
+
+sync || true
+
+log "clean shutdown marked"
+
+exit 0

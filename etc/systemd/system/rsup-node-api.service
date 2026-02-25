@@ -1,0 +1,60 @@
+[Unit]
+Description=Rpi Supervisor Node Telemetry API
+Documentation=https://github.com/AirysDark
+After=network-online.target
+Wants=network-online.target
+
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+
+# ---- execution ----
+ExecStart=/usr/bin/python3 /opt/rpi-supervisor/bin/rsup-node-api
+WorkingDirectory=/opt/rpi-supervisor
+Restart=always
+RestartSec=3
+
+# ---- watchdog (safe if unused) ----
+WatchdogSec=60
+
+# ---- user isolation (enable when ready) ----
+#User=rsup
+#Group=rsup
+
+# ---- security hardening ----
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+
+# allow network + needed paths
+ReadWritePaths=/run /var/lib/rpi-supervisor
+ReadOnlyPaths=/opt/rpi-supervisor
+
+# ---- limits ----
+LimitNOFILE=4096
+TasksMax=512
+
+# ---- logging ----
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rsup-node-api
+
+# ---- shutdown behavior ----
+TimeoutStopSec=15
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

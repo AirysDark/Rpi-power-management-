@@ -1,0 +1,36 @@
+[Unit]
+Description=Rpi Supervisor — Assert SAFE power cut signal
+DefaultDependencies=no
+Before=poweroff.target halt.target reboot.target shutdown.target
+Wants=poweroff.target halt.target reboot.target shutdown.target
+
+[Service]
+Type=oneshot
+
+# Assert SAFE power GPIO (HIGH = safe to cut)
+ExecStart=/usr/bin/python3 - <<'PY'
+from gpiozero import OutputDevice
+import time
+
+try:
+    p = OutputDevice(22, active_high=True, initial_value=False)
+    p.on()
+    time.sleep(0.15)
+except Exception:
+    pass
+PY
+
+TimeoutSec=5
+RemainAfterExit=yes
+
+# --- Hardening ---
+User=root
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=poweroff.target halt.target reboot.target shutdown.target

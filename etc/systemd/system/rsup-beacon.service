@@ -1,0 +1,40 @@
+[Unit]
+Description=Rpi Supervisor Node Discovery Beacon
+Documentation=https://github.com/AirysDark/rpi-supervisor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# ---- execution ----
+ExecStart=/usr/bin/python3 /opt/rpi-supervisor/bin/rsup-beacon
+WorkingDirectory=/opt/rpi-supervisor
+Restart=always
+RestartSec=2
+
+# ---- security hardening ----
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+# ---- allow needed access ----
+ReadOnlyPaths=/opt/rpi-supervisor
+ReadWritePaths=/run
+
+# ---- logging ----
+StandardOutput=journal
+StandardError=journal
+
+# ---- resource limits ----
+LimitNOFILE=4096
+LimitNPROC=512
+
+[Install]
+WantedBy=multi-user.target

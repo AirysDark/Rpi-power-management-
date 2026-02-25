@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ============================================================
+# CONFIG
+# ============================================================
+
+KEYFILE="/etc/rpi-supervisor/device-key"
+DEVICE_FILE="/etc/rpi-supervisor/device.json"
+KEYDIR="/etc/rpi-supervisor"
+
+# ============================================================
+# PREP
+# ============================================================
+
+echo "[rsup-key] bootstrap starting"
+
+# ensure config dir exists
+if [[ ! -d "$KEYDIR" ]]; then
+  echo "[rsup-key] creating $KEYDIR"
+  mkdir -p "$KEYDIR"
+  chmod 700 "$KEYDIR"
+fi
+
+# ============================================================
+# EXISTING KEY CHECK
+# ============================================================
+
+if [[ -f "$KEYFILE" ]]; then
+  echo "[rsup-key] device key already exists"
+  exit 0
+fi
+
+# ============================================================
+# GENERATE KEY
+# ============================================================
+
+echo "[rsup-key] generating device key"
+
+umask 077
+openssl rand -hex 32 > "$KEYFILE"
+
+chmod 600 "$KEYFILE"
+
+echo "[rsup-key] key created at $KEYFILE"
+echo "[rsup-key] bootstrap complete"
